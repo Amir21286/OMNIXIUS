@@ -8,8 +8,10 @@
 
 use std::fmt;
 
+use serde::{Deserialize, Serialize};
+
 /// Unique identifier of an organism inside the simulation.
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct OrganismId(pub u64);
 
 /// Simple DNA representation.
@@ -18,7 +20,7 @@ pub struct OrganismId(pub u64);
 /// - bit-level genomes
 /// - arbitrary symbolic genomes
 /// - compressed encodings (see `.cursorrules` – serialization = bincode + compression).
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Dna {
     /// Continuous-valued genes in \[0.0, 1.0\].
     pub genes: Vec<f32>,
@@ -32,7 +34,7 @@ impl Dna {
 }
 
 /// Organism living in the Phoenix Engine population.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Organism {
     pub id: OrganismId,
     pub dna: Dna,
@@ -60,7 +62,7 @@ pub trait BlockchainStorage {
 
     /// Store a population snapshot on-chain.
     fn store_population(
-        &self,
+        &mut self,
         checkpoint_id: &str,
         population: &[Organism],
     ) -> Result<(), Self::Error>;
@@ -183,7 +185,7 @@ where
 
     /// Persist current population state to blockchain.
     pub fn checkpoint_to_blockchain(
-        &self,
+        &mut self,
         checkpoint_id: &str,
     ) -> Result<(), PhoenixError<B::Error>> {
         self.blockchain
@@ -281,7 +283,7 @@ mod tests {
         }
 
         fn store_population(
-            &self,
+            &mut self,
             checkpoint_id: &str,
             population: &[Organism],
         ) -> Result<(), Self::Error> {
@@ -295,7 +297,7 @@ mod tests {
     fn evolution_and_recovery_pipeline_works() {
         let mut rng = rand::thread_rng();
         let quantum = DummyQuantumMutator::default();
-        let mut blockchain = InMemoryBlockchain::default();
+        let blockchain = InMemoryBlockchain::default();
 
         // Initial population.
         let population: Vec<Organism> = (0..8)
@@ -306,7 +308,7 @@ mod tests {
             })
             .collect();
 
-        let mut engine = PhoenixEngine::new("L3_organisms::O4_day_mohk", quantum, &mut blockchain, population);
+        let mut engine = PhoenixEngine::new("L3_organisms::O4_day_mohk", quantum, blockchain, population);
 
         // Checkpoint generation 0.
         engine

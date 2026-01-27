@@ -1,0 +1,19 @@
+[build]
+target = "x86_64-pc-windows-msvc"
+
+[target.x86_64-pc-windows-msvc]
+# MSVC linker from Visual Studio Build Tools 2022
+linker = "C:\\Program Files (x86)\\Microsoft Visual Studio\\2022\\BuildTools\\VC\\Tools\\MSVC\\14.44.35207\\bin\\Hostx64\\x64\\link.exe"
+
+# NOTE:
+# - На этой машине Windows SDK (kernel32.lib и др.) не найден в стандартных путях,
+#   поэтому Rust всё равно будет ругаться на отсутствие kernel32.lib,
+#   пока не будет установлен Windows 10/11 SDK.
+# - Как только SDK появится (обычно `C:\\Program Files (x86)\\Windows Kits\\10\\Lib\\<ver>\\um\\x64`),
+#   сюда можно будет добавить rustflags с /LIBPATH.
+#
+# Пример, который нужно будет ДОПОЛНИТЬ, когда появится SDK:
+# rustflags = [
+#   "-C", "link-args=/LIBPATH:C:\\Program Files (x86)\\Windows Kits\\10\\Lib\\<ver>\\um\\x64",
+# ]
+
