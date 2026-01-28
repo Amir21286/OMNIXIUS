@@ -19,6 +19,9 @@ pub mod layers {
     #[path = "C:/OMNIXIUS/layers/L2_noosphere/ai_oracle.rs"]
     pub mod l2_noosphere;
 
+    #[path = "C:/OMNIXIUS/layers/L2_noosphere/academy.rs"]
+    pub mod l2_academy;
+
     pub mod l3_organisms {
         pub mod o4_day_mohk {
             #[path = "C:/OMNIXIUS/layers/L3_organisms/O4_day_mohk/phoenix_engine.rs"]
@@ -29,6 +32,9 @@ pub mod layers {
     pub mod l4_oikoumene {
         #[path = "C:/OMNIXIUS/layers/L4_oikoumene/auth.rs"]
         pub mod auth;
+
+        #[path = "C:/OMNIXIUS/layers/L4_oikoumene/social.rs"]
+        pub mod social;
     }
 
     #[path = "C:/OMNIXIUS/layers/L5_telesophy/communication.rs"]
@@ -50,10 +56,12 @@ pub mod api {
     use crate::layers::l1_chronos::L1ChronosFileStorage;
     use crate::layers::l1_economy::{EconomyService, Wallet, LeaderboardEntry};
     use crate::layers::l2_noosphere::NoosphereService;
+    use crate::layers::l2_academy::AcademyService;
     use crate::layers::l3_organisms::o4_day_mohk::phoenix_engine::{
         PhoenixEngine, Organism
     };
     use crate::layers::l4_oikoumene::auth::AuthService;
+    use crate::layers::l4_oikoumene::social::SocialService;
     use crate::layers::l5_telesophy::{CommunicationService, Message};
 
     #[derive(Serialize, Clone)]
@@ -68,6 +76,8 @@ pub mod api {
         pub auth: Arc<AuthService>,
         pub economy: Arc<EconomyService>,
         pub comms: Arc<CommunicationService>,
+        pub academy: Arc<AcademyService>,
+        pub social: Arc<SocialService>,
         pub history: Arc<Mutex<Vec<HistoryPoint>>>,
     }
 
@@ -91,6 +101,45 @@ pub mod api {
         pub new_balance: Option<f64>,
     }
 
+    #[derive(Serialize)]
+    pub struct UserData {
+        pub subscriptions: Vec<String>,
+        pub courses: Vec<String>,
+    }
+
+    #[derive(Deserialize)]
+    pub struct InteractionRequest {
+        pub username: String,
+        pub target: String,
+    }
+
+    #[derive(Serialize)]
+    pub struct MarketData {
+        pub asset: String,
+        pub price: f64,
+        pub change: f32,
+    }
+
+    #[derive(Serialize)]
+    pub struct Course {
+        pub title: String,
+        pub category: String,
+        pub cost: f64,
+    }
+
+    #[derive(Serialize)]
+    pub struct Blogger {
+        pub name: String,
+        pub subscribers: u64,
+        pub category: String,
+    }
+
+    #[derive(Deserialize)]
+    pub struct MessageRequest {
+        pub username: String,
+        pub content: String,
+    }
+
     #[derive(Deserialize)]
     pub struct AuthRequest {
         pub username: String,
@@ -102,12 +151,6 @@ pub mod api {
         pub token: Option<String>,
         pub error: Option<String>,
         pub wallet: Option<Wallet>,
-    }
-
-    #[derive(Deserialize)]
-    pub struct MessageRequest {
-        pub username: String,
-        pub content: String,
     }
 
     pub async fn get_status(State(state): State<Arc<AppState>>) -> Json<SystemStatus> {
@@ -126,6 +169,67 @@ pub mod api {
             history: history.clone(),
             energy: energy_state,
         })
+    }
+
+    pub async fn get_user_data(
+        State(state): State<Arc<AppState>>,
+        Path(username): Path<String>,
+    ) -> Json<Result<UserData, String>> {
+        let subs = state.social.get_user_subscriptions(&username).await.unwrap_or_default();
+        let courses = state.academy.get_user_courses(&username).await.unwrap_or_default();
+        Json(Ok(UserData { subscriptions: subs, courses }))
+    }
+
+    pub async fn subscribe(
+        State(state): State<Arc<AppState>>,
+        Json(payload): Json<InteractionRequest>,
+    ) -> Json<Result<(), String>> {
+        Json(state.social.subscribe(&payload.username, &payload.target).await)
+    }
+
+    pub async fn unsubscribe(
+        State(state): State<Arc<AppState>>,
+        Json(payload): Json<InteractionRequest>,
+    ) -> Json<Result<(), String>> {
+        Json(state.social.unsubscribe(&payload.username, &payload.target).await)
+    }
+
+    pub async fn buy_course(
+        State(state): State<Arc<AppState>>,
+        Json(payload): Json<InteractionRequest>,
+    ) -> Json<Result<f64, String>> {
+        let cost = 50.0;
+        match state.economy.spend_ixi(&payload.username, cost).await {
+            Ok(new_balance) => {
+                let _ = state.academy.buy_course(&payload.username, &payload.target).await;
+                Json(Ok(new_balance))
+            },
+            Err(e) => Json(Err(e)),
+        }
+    }
+
+    pub async fn get_markets() -> Json<Vec<MarketData>> {
+        Json(vec![
+            MarketData { asset: "IXI/USD".to_string(), price: 1.24, change: 5.2 },
+            MarketData { asset: "BTC/IXI".to_string(), price: 42000.0, change: -1.4 },
+            MarketData { asset: "ETH/IXI".to_string(), price: 2400.0, change: 2.8 },
+        ])
+    }
+
+    pub async fn get_courses() -> Json<Vec<Course>> {
+        Json(vec![
+            Course { title: "Quantum Computing 101".to_string(), category: "Science".to_string(), cost: 50.0 },
+            Course { title: "Blockchain Architecture".to_string(), category: "Tech".to_string(), cost: 75.0 },
+            Course { title: "Evolutionary Biology".to_string(), category: "Bio".to_string(), cost: 40.0 },
+        ])
+    }
+
+    pub async fn get_bloggers() -> Json<Vec<Blogger>> {
+        Json(vec![
+            Blogger { name: "CyberNomad".to_string(), subscribers: 124000, category: "Tech".to_string() },
+            Blogger { name: "BioHacker_X".to_string(), subscribers: 89000, category: "Science".to_string() },
+            Blogger { name: "Astra_Explorer".to_string(), subscribers: 256000, category: "Travel".to_string() },
+        ])
     }
 
     pub async fn trigger_evolution(State(state): State<Arc<AppState>>) -> Json<EvolutionResponse> {
@@ -216,8 +320,15 @@ pub mod api {
             .route("/api/leaderboard", get(get_leaderboard))
             .route("/api/messages", get(get_messages))
             .route("/api/messages", post(send_message))
+            .route("/api/user/data/:username", get(get_user_data))
+            .route("/api/oikoumene/subscribe", post(subscribe))
+            .route("/api/oikoumene/unsubscribe", post(unsubscribe))
+            .route("/api/noosphere/buy-course", post(buy_course))
             .route("/api/register", post(register))
             .route("/api/login", post(login))
+            .route("/api/noosphere/markets", get(get_markets))
+            .route("/api/noosphere/courses", get(get_courses))
+            .route("/api/oikoumene/bloggers", get(get_bloggers))
             .layer(CorsLayer::permissive())
             .with_state(state)
     }

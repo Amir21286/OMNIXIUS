@@ -3,8 +3,10 @@ use omnixius::layers::l_minus_1_energy::EnergyService;
 use omnixius::layers::l0_quantum::L0QuantumMutator;
 use omnixius::layers::l1_chronos::L1ChronosFileStorage;
 use omnixius::layers::l1_economy::EconomyService;
+use omnixius::layers::l2_academy::AcademyService;
 use omnixius::layers::l3_organisms::o4_day_mohk::phoenix_engine::{PhoenixEngine, Organism, Dna, OrganismId};
 use omnixius::layers::l4_oikoumene::auth::AuthService;
+use omnixius::layers::l4_oikoumene::social::SocialService;
 use omnixius::layers::l5_telesophy::CommunicationService;
 use std::net::SocketAddr;
 use std::sync::{Arc, Mutex};
@@ -52,6 +54,8 @@ async fn main() {
     let auth = AuthService::new(pool.clone(), "SUPER_SECRET_HACKER_KEY_123".to_string()).await;
     let economy = EconomyService::new(pool.clone()).await;
     let comms = CommunicationService::new(pool.clone()).await;
+    let academy = AcademyService::new(pool.clone()).await;
+    let social = SocialService::new(pool.clone()).await;
     let energy = EnergyService::new();
 
     // 6. Create Shared State
@@ -61,6 +65,8 @@ async fn main() {
         auth: Arc::new(auth),
         economy: Arc::new(economy),
         comms: Arc::new(comms),
+        academy: Arc::new(academy),
+        social: Arc::new(social),
         history: Arc::new(Mutex::new(Vec::new())),
     });
 
@@ -94,7 +100,7 @@ async fn main() {
     let app = api::app(state);
     let addr = SocketAddr::from(([127, 0, 0, 1], 4000));
     
-    println!("== OMNIXIUS BACKEND: ENERGY EDITION (DB ACTIVE) ==");
+    println!("== OMNIXIUS BACKEND: CONTENT EDITION (DB ACTIVE) ==");
     println!("Listening on http://{}", addr);
 
     let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
