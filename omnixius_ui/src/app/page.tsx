@@ -11,15 +11,18 @@ import {
   Cpu, 
   ChevronRight,
   RefreshCw,
-  Globe
+  Globe,
+  User as UserIcon,
+  LogOut
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import AuthModal from "@/components/AuthModal";
 
 // --- Types ---
 interface Organism {
-  id: string;
+  id: number; // Simplified after #[serde(transparent)]
   fitness: number;
-  generation: number;
+  generation?: number;
 }
 
 export default function OmnixiusDashboard() {
@@ -28,47 +31,68 @@ export default function OmnixiusDashboard() {
   const [population, setPopulation] = useState<Organism[]>([]);
   const [backendStatus, setBackendStatus] = useState("Connecting...");
   const [logs, setLogs] = useState<string[]>(["System initialized. Phoenix Engine ready."]);
+  
+  // Auth State
+  const [isAuthOpen, setIsAuthOpen] = useState(false);
+  const [user, setUser] = useState<{ token: string; username: string } | null>(null);
 
   // Check Backend Connection
+  const fetchStatus = async () => {
+    try {
+      const res = await fetch("http://localhost:4000/api/status");
+      const data = await res.json();
+      setBackendStatus(`${data.status} (${data.version})`);
+      setGeneration(data.generation);
+    } catch (e) {
+      setBackendStatus("Offline (Start Backend)");
+    }
+  };
+
   useEffect(() => {
-    const checkStatus = async () => {
-      try {
-        const res = await fetch("http://localhost:4000/api/status");
-        const data = await res.json();
-        setBackendStatus(`${data.status} (${data.version})`);
-      } catch (e) {
-        setBackendStatus("Offline (Start Backend)");
-      }
-    };
-    checkStatus();
-    const interval = setInterval(checkStatus, 5000);
+    fetchStatus();
+    const interval = setInterval(fetchStatus, 5000);
+    
+    // Load user from localStorage
+    const savedUser = localStorage.getItem("omnixius_user");
+    if (savedUser) setUser(JSON.parse(savedUser));
+    
     return () => clearInterval(interval);
   }, []);
 
-  // Simulate initial population
-  useEffect(() => {
-    const initial = Array.from({ length: 12 }).map((_, i) => ({
-      id: `ORG-${Math.random().toString(36).substr(2, 5).toUpperCase()}`,
-      fitness: Math.random() * 10,
-      generation: 0
-    }));
-    setPopulation(initial);
-  }, []);
+  const handleAuthSuccess = (token: string, username: string) => {
+    const newUser = { token, username };
+    setUser(newUser);
+    localStorage.setItem("omnixius_user", JSON.stringify(newUser));
+    setLogs(prev => [`User ${username} authenticated.`, ...prev].slice(0, 5));
+  };
 
-  const runEvolution = () => {
-    setIsEvolving(true);
-    setLogs(prev => [`Gen ${generation + 1}: Applying quantum mutations...`, ...prev].slice(0, 5));
+  const handleLogout = () => {
+    setUser(null);
+    localStorage.removeItem("omnixius_user");
+    setLogs(prev => ["User logged out.", ...prev].slice(0, 5));
+  };
+
+  const runEvolution = async () => {
+    if (isEvolving) return;
     
-    setTimeout(() => {
-      setGeneration(prev => prev + 1);
-      setPopulation(prev => prev.map(org => ({
-        ...org,
-        fitness: Math.min(15, org.fitness + (Math.random() * 2 - 0.5)),
-        generation: generation + 1
-      })));
+    setIsEvolving(true);
+    setLogs(prev => [`Gen ${generation + 1}: Contacting L0 Quantum Mutator...`, ...prev].slice(0, 5));
+    
+    try {
+      const res = await fetch("http://localhost:4000/api/evolve", { 
+        method: "POST",
+        headers: user ? { "Authorization": `Bearer ${user.token}` } : {}
+      });
+      const data = await res.json();
+      
+      setGeneration(data.generation);
+      setPopulation(data.population);
+      setLogs(prev => [`Gen ${data.generation}: Evolution complete. L1 Checkpoint verified.`, ...prev].slice(0, 5));
+    } catch (e) {
+      setLogs(prev => ["Error: Backend unreachable during evolution.", ...prev].slice(0, 5));
+    } finally {
       setIsEvolving(false);
-      setLogs(prev => [`Gen ${generation + 1}: Evolution complete. Checkpoint saved to L1.`, ...prev].slice(0, 5));
-    }, 1500);
+    }
   };
 
   return (
@@ -102,6 +126,28 @@ export default function OmnixiusDashboard() {
           </nav>
 
           <div className="flex items-center gap-4">
+            {user ? (
+              <div className="flex items-center gap-4">
+                <div className="flex items-center gap-2 px-3 py-1.5 bg-white/5 border border-white/10 rounded-full">
+                  <UserIcon className="w-3 h-3 text-indigo-400" />
+                  <span className="text-[10px] font-bold uppercase tracking-wider">{user.username}</span>
+                </div>
+                <button 
+                  onClick={handleLogout}
+                  className="p-2 hover:bg-red-500/10 rounded-full text-slate-500 hover:text-red-400 transition-all"
+                >
+                  <LogOut className="w-4 h-4" />
+                </button>
+              </div>
+            ) : (
+              <button 
+                onClick={() => setIsAuthOpen(true)}
+                className="px-4 py-2 bg-white text-black text-xs font-bold rounded-full hover:bg-slate-200 transition-colors"
+              >
+                Sign In
+              </button>
+            )}
+            
             <div className={cn(
               "flex items-center gap-2 px-3 py-1.5 border rounded-full transition-all",
               backendStatus.includes("Active") 
@@ -131,17 +177,17 @@ export default function OmnixiusDashboard() {
                   <p className="text-[10px] text-slate-500 uppercase">Generation</p>
                 </div>
                 <div className="p-4 rounded-2xl bg-white/[0.02] border border-white/5">
-                  <p className="text-2xl font-bold text-indigo-400">{population.length}</p>
+                  <p className="text-2xl font-bold text-indigo-400">{population.length || 12}</p>
                   <p className="text-[10px] text-slate-500 uppercase">Population</p>
                 </div>
               </div>
 
               <button 
                 onClick={runEvolution}
-                disabled={isEvolving}
+                disabled={isEvolving || !backendStatus.includes("Active")}
                 className={cn(
                   "w-full py-4 rounded-2xl font-bold transition-all flex items-center justify-center gap-3 group relative overflow-hidden",
-                  isEvolving 
+                  (isEvolving || !backendStatus.includes("Active"))
                     ? "bg-slate-800 text-slate-500 cursor-not-allowed" 
                     : "bg-indigo-600 hover:bg-indigo-500 text-white shadow-xl shadow-indigo-600/20 active:scale-[0.98]"
                 )}
@@ -162,13 +208,13 @@ export default function OmnixiusDashboard() {
             <h2 className="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-6 flex items-center gap-2">
               <Database className="w-4 h-4 text-purple-500" /> System Logs
             </h2>
-            <div className="space-y-4">
+            <div className="space-y-4 h-48 overflow-y-auto pr-2 custom-scrollbar">
               {logs.map((log, i) => (
                 <motion.div 
                   initial={{ opacity: 0, x: -10 }}
                   animate={{ opacity: 1, x: 0 }}
                   key={i} 
-                  className="flex gap-3 text-[11px] leading-relaxed"
+                  className="flex gap-3 text-[11px] leading-relaxed mb-3"
                 >
                   <ChevronRight className="w-3 h-3 text-indigo-500 shrink-0 mt-0.5" />
                   <span className={i === 0 ? "text-slate-200" : "text-slate-500"}>{log}</span>
@@ -184,10 +230,8 @@ export default function OmnixiusDashboard() {
             <h2 className="text-xl font-semibold text-white flex items-center gap-3">
               <Activity className="w-6 h-6 text-purple-500" /> Active Population
             </h2>
-            <div className="flex gap-2">
-              <div className="px-3 py-1 bg-white/5 rounded-lg text-[10px] text-slate-400 border border-white/5">
-                Sort by Fitness
-              </div>
+            <div className="flex gap-2 text-[10px] text-slate-500">
+              {population.length === 0 ? "Click Trigger to load real data" : `Showing ${population.length} organisms`}
             </div>
           </div>
 
@@ -205,12 +249,12 @@ export default function OmnixiusDashboard() {
                 >
                   <div className="flex justify-between items-start mb-4">
                     <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-slate-800 to-slate-700 flex items-center justify-center border border-white/10 group-hover:border-indigo-500/50 transition-colors">
-                        <span className="text-[10px] font-mono text-indigo-400">{org.id.slice(4)}</span>
+                      <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-slate-800 to-slate-700 flex items-center justify-center border border-white/10 group-hover:border-indigo-500/50 transition-colors text-indigo-400 font-mono text-[10px]">
+                        #{org.id}
                       </div>
                       <div>
-                        <p className="text-sm font-bold text-white tracking-tight">{org.id}</p>
-                        <p className="text-[10px] text-slate-500">Gen {org.generation}</p>
+                        <p className="text-sm font-bold text-white tracking-tight">Organism {org.id}</p>
+                        <p className="text-[10px] text-slate-500 font-mono">DNA Sequence Active</p>
                       </div>
                     </div>
                     <div className="text-right">
@@ -223,16 +267,29 @@ export default function OmnixiusDashboard() {
                   <div className="h-1.5 w-full bg-white/5 rounded-full overflow-hidden">
                     <motion.div 
                       initial={{ width: 0 }}
-                      animate={{ width: `${(org.fitness / 15) * 100}%` }}
+                      animate={{ width: `${(org.fitness / 20) * 100}%` }}
                       className="h-full bg-gradient-to-r from-indigo-500 to-purple-500" 
                     />
                   </div>
                 </motion.div>
               ))}
             </AnimatePresence>
+            
+            {population.length === 0 && (
+              <div className="col-span-full py-20 text-center border-2 border-dashed border-white/5 rounded-3xl">
+                <p className="text-slate-500 text-sm">Phoenix Engine is idle. Trigger evolution to begin.</p>
+              </div>
+            )}
           </div>
         </div>
       </main>
+
+      {/* Auth Modal */}
+      <AuthModal 
+        isOpen={isAuthOpen} 
+        onClose={() => setIsAuthOpen(false)} 
+        onSuccess={handleAuthSuccess}
+      />
 
       {/* Footer / Status Bar */}
       <footer className="fixed bottom-0 left-0 right-0 z-20 border-t border-white/5 bg-black/80 backdrop-blur-md">

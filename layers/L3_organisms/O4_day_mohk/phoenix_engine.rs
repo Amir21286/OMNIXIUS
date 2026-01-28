@@ -12,6 +12,7 @@ use serde::{Deserialize, Serialize};
 
 /// Unique identifier of an organism inside the simulation.
 #[derive(Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(transparent)]
 pub struct OrganismId(pub u64);
 
 /// Simple DNA representation.
