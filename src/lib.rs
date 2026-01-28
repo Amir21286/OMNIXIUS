@@ -22,6 +22,12 @@ pub mod layers {
     #[path = "C:/OMNIXIUS/layers/L2_noosphere/academy.rs"]
     pub mod l2_academy;
 
+    #[path = "C:/OMNIXIUS/layers/L2_noosphere/investments.rs"]
+    pub mod l2_investments;
+
+    #[path = "C:/OMNIXIUS/layers/L2_noosphere/quests.rs"]
+    pub mod l2_quests;
+
     pub mod l3_organisms {
         pub mod o4_day_mohk {
             #[path = "C:/OMNIXIUS/layers/L3_organisms/O4_day_mohk/phoenix_engine.rs"]
@@ -39,6 +45,12 @@ pub mod layers {
 
     #[path = "C:/OMNIXIUS/layers/L5_telesophy/communication.rs"]
     pub mod l5_telesophy;
+
+    #[path = "C:/OMNIXIUS/layers/L6_astra/events.rs"]
+    pub mod l6_events;
+
+    #[path = "C:/OMNIXIUS/layers/L6_astra/day_mohk.rs"]
+    pub mod l6_day_mohk;
 }
 
 pub mod api {
@@ -49,6 +61,7 @@ pub mod api {
     use tower_http::cors::CorsLayer;
     use serde::{Serialize, Deserialize};
     use std::sync::{Arc, Mutex};
+    use std::time::{SystemTime, UNIX_EPOCH};
     
     use crate::layers::l_minus_1_energy::{EnergyService, EnergyState};
     use crate::layers::l0_quantum::L0QuantumMutator;
@@ -57,12 +70,16 @@ pub mod api {
     use crate::layers::l1_economy::{EconomyService, Wallet, LeaderboardEntry};
     use crate::layers::l2_noosphere::NoosphereService;
     use crate::layers::l2_academy::AcademyService;
+    use crate::layers::l2_investments::{InvestmentService, Asset, Investment};
+    use crate::layers::l2_quests::{QuestService, Quest};
     use crate::layers::l3_organisms::o4_day_mohk::phoenix_engine::{
         PhoenixEngine, Organism
     };
     use crate::layers::l4_oikoumene::auth::AuthService;
     use crate::layers::l4_oikoumene::social::SocialService;
     use crate::layers::l5_telesophy::{CommunicationService, Message};
+    use crate::layers::l6_events::{EventService, GlobalEvent};
+    use crate::layers::l6_day_mohk::{DayMohkService, GeoLocation};
 
     #[derive(Serialize, Clone)]
     pub struct HistoryPoint {
@@ -78,7 +95,12 @@ pub mod api {
         pub comms: Arc<CommunicationService>,
         pub academy: Arc<AcademyService>,
         pub social: Arc<SocialService>,
+        pub investments: Arc<InvestmentService>,
+        pub quests: Arc<QuestService>,
+        pub events: Arc<Mutex<EventService>>,
+        pub day_mohk: Arc<Mutex<Vec<GeoLocation>>>,
         pub history: Arc<Mutex<Vec<HistoryPoint>>>,
+        pub last_activity: Arc<Mutex<std::collections::HashMap<String, u64>>>,
     }
 
     #[derive(Serialize)]
@@ -91,26 +113,27 @@ pub mod api {
         pub population: Vec<Organism>,
         pub history: Vec<HistoryPoint>,
         pub energy: EnergyState,
-    }
-
-    #[derive(Serialize)]
-    pub struct EvolutionResponse {
-        pub generation: u64,
-        pub population: Vec<Organism>,
-        pub history: Vec<HistoryPoint>,
-        pub new_balance: Option<f64>,
+        pub current_event: GlobalEvent,
     }
 
     #[derive(Serialize)]
     pub struct UserData {
         pub subscriptions: Vec<String>,
         pub courses: Vec<String>,
+        pub investments: Vec<Investment>,
     }
 
     #[derive(Deserialize)]
     pub struct InteractionRequest {
         pub username: String,
         pub target: String,
+    }
+
+    #[derive(Deserialize)]
+    pub struct InvestmentRequest {
+        pub username: String,
+        pub asset_id: String,
+        pub amount: f64,
     }
 
     #[derive(Serialize)]
@@ -153,11 +176,33 @@ pub mod api {
         pub wallet: Option<Wallet>,
     }
 
+    #[derive(Deserialize)]
+    pub struct EnergyConvertRequest {
+        pub username: String,
+        pub amount: f64,
+    }
+
+    #[derive(Deserialize)]
+    pub struct ActivityRequest {
+        pub username: String,
+        pub activity_type: String,
+        pub human_token: String,
+    }
+
+    #[derive(Deserialize)]
+    pub struct DeployRequest {
+        pub location_id: String,
+        pub organism_id: u64,
+    }
+
     pub async fn get_status(State(state): State<Arc<AppState>>) -> Json<SystemStatus> {
         let engine = state.engine.lock().unwrap();
         let history = state.history.lock().unwrap();
         let mut energy_svc = state.energy.lock().unwrap();
+        let mut event_svc = state.events.lock().unwrap();
+        
         let energy_state = energy_svc.update(engine.population_size());
+        let current_event = event_svc.update();
         
         Json(SystemStatus {
             status: "Active".to_string(),
@@ -168,7 +213,66 @@ pub mod api {
             population: engine.population.clone(),
             history: history.clone(),
             energy: energy_state,
+            current_event,
         })
+    }
+
+    pub async fn get_quests(State(state): State<Arc<AppState>>) -> Json<Vec<Quest>> {
+        Json(state.quests.get_available_quests().await)
+    }
+
+    pub async fn get_day_mohk_map(State(state): State<Arc<AppState>>) -> Json<Vec<GeoLocation>> {
+        let locations = state.day_mohk.lock().unwrap();
+        Json(locations.clone())
+    }
+
+    pub async fn deploy_organism(
+        State(state): State<Arc<AppState>>,
+        Json(payload): Json<DeployRequest>,
+    ) -> Json<Result<(), String>> {
+        let mut locations = state.day_mohk.lock().unwrap();
+        if let Some(loc) = locations.iter_mut().find(|l| l.id == payload.location_id) {
+            if !loc.deployed_organisms.contains(&payload.organism_id) {
+                loc.deployed_organisms.push(payload.organism_id);
+                loc.population += 1;
+                loc.local_energy += 100.0;
+                Ok(())
+            } else {
+                Err("Organism already deployed to this territory.".to_string())
+            }
+        } else {
+            Err("Location not found.".to_string())
+        }.into()
+    }
+
+    pub async fn report_activity(
+        State(state): State<Arc<AppState>>,
+        Json(payload): Json<ActivityRequest>,
+    ) -> Json<Result<(), String>> {
+        if payload.human_token != "human_verified_v1" {
+            return Json(Err("Bot activity detected: Invalid human token.".to_string()));
+        }
+
+        let now = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_millis() as u64;
+        let mut last_act = state.last_activity.lock().unwrap();
+        let last_time = last_act.get(&payload.username).cloned().unwrap_or(0);
+        
+        if now - last_time < 500 {
+            return Json(Err("Activity too frequent. Slow down, human.".to_string()));
+        }
+        last_act.insert(payload.username.clone(), now);
+
+        let mut energy_svc = state.energy.lock().unwrap();
+        let amount = match payload.activity_type.as_str() {
+            "click" => 0.1,
+            "invest" => 2.0,
+            "subscribe" => 1.5,
+            "chat" => 0.5,
+            "view_ad" => 5.0,
+            _ => 0.05,
+        };
+        energy_svc.add_activity_energy(amount);
+        Json(Ok(()))
     }
 
     pub async fn get_user_data(
@@ -177,7 +281,8 @@ pub mod api {
     ) -> Json<Result<UserData, String>> {
         let subs = state.social.get_user_subscriptions(&username).await.unwrap_or_default();
         let courses = state.academy.get_user_courses(&username).await.unwrap_or_default();
-        Json(Ok(UserData { subscriptions: subs, courses }))
+        let invs = state.investments.get_user_investments(&username).await.unwrap_or_default();
+        Json(Ok(UserData { subscriptions: subs, courses, investments: invs }))
     }
 
     pub async fn subscribe(
@@ -208,6 +313,44 @@ pub mod api {
         }
     }
 
+    pub async fn invest(
+        State(state): State<Arc<AppState>>,
+        Json(payload): Json<InvestmentRequest>,
+    ) -> Json<Result<f64, String>> {
+        let assets = InvestmentService::get_market_assets();
+        let asset = assets.iter().find(|a| a.id == payload.asset_id).ok_or("Asset not found").unwrap();
+        
+        match state.economy.spend_ixi(&payload.username, payload.amount).await {
+            Ok(new_balance) => {
+                let _ = state.investments.invest(&payload.username, &payload.asset_id, payload.amount, asset.price).await;
+                Json(Ok(new_balance))
+            },
+            Err(e) => Json(Err(e)),
+        }
+    }
+
+    pub async fn convert_energy(
+        State(state): State<Arc<AppState>>,
+        Json(payload): Json<EnergyConvertRequest>,
+    ) -> Json<Result<f64, String>> {
+        let ixi_reward = {
+            let mut energy_svc = state.energy.lock().unwrap();
+            match energy_svc.convert_to_ixi(payload.amount) {
+                Ok(reward) => reward,
+                Err(e) => return Json(Err(e)),
+            }
+        };
+        
+        match state.economy.reward_ixi(&payload.username, ixi_reward).await {
+            Ok(new_balance) => Json(Ok(new_balance)),
+            Err(e) => Json(Err(e)),
+        }
+    }
+
+    pub async fn get_assets() -> Json<Vec<Asset>> {
+        Json(InvestmentService::get_market_assets())
+    }
+
     pub async fn get_markets() -> Json<Vec<MarketData>> {
         Json(vec![
             MarketData { asset: "IXI/USD".to_string(), price: 1.24, change: 5.2 },
@@ -232,7 +375,7 @@ pub mod api {
         ])
     }
 
-    pub async fn trigger_evolution(State(state): State<Arc<AppState>>) -> Json<EvolutionResponse> {
+    pub async fn trigger_evolution(State(state): State<Arc<AppState>>) -> Json<crate::api::EvolutionResponse> {
         let mut engine = state.engine.lock().unwrap();
         let mut rng = rand::thread_rng();
         
@@ -249,7 +392,7 @@ pub mod api {
         history.push(HistoryPoint { generation: engine.generation, best_fitness: best_f });
         if history.len() > 50 { history.remove(0); }
 
-        Json(EvolutionResponse {
+        Json(crate::api::EvolutionResponse {
             generation: engine.generation,
             population: engine.population.clone(),
             history: history.clone(),
@@ -324,6 +467,13 @@ pub mod api {
             .route("/api/oikoumene/subscribe", post(subscribe))
             .route("/api/oikoumene/unsubscribe", post(unsubscribe))
             .route("/api/noosphere/buy-course", post(buy_course))
+            .route("/api/noosphere/invest", post(invest))
+            .route("/api/noosphere/assets", get(get_assets))
+            .route("/api/noosphere/quests", get(get_quests))
+            .route("/api/energy/convert", post(convert_energy))
+            .route("/api/energy/report-activity", post(report_activity))
+            .route("/api/astra/map", get(get_day_mohk_map))
+            .route("/api/astra/deploy", post(deploy_organism))
             .route("/api/register", post(register))
             .route("/api/login", post(login))
             .route("/api/noosphere/markets", get(get_markets))
