@@ -9,7 +9,7 @@ import {
   Wallet as WalletIcon, Coins, Trophy, Medal, Crown, Send, Battery, ArrowRight,
   BarChart3, GraduationCap, Briefcase, Play, Trophy as SportIcon, Heart, Terminal,
   CheckCircle2, Plus, Search as SearchIcon, Volume2, VolumeX, Mic2, Landmark,
-  ArrowUpRight, AlertTriangle, Map as MapIcon, Target, Rocket, Gamepad2
+  ArrowUpRight, AlertTriangle, Map as MapIcon, Target, Rocket, Gamepad2, Shield
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import AuthModal from "@/components/AuthModal";
@@ -96,6 +96,7 @@ export default function OmnixiusDashboard() {
   const [oracleAdvice, setOracleAdvice] = useState<{ content: string, author: string } | null>(null);
   const [isAuthOpen, setIsAuthOpen] = useState(false);
   const [selectedOrganism, setSelectedOrganism] = useState<Organism | null>(null);
+  const [selectedLocation, setSelectedLocation] = useState<GeoLocation | null>(null);
   const [user, setUser] = useState<{ token: string; username: string } | null>(null);
   const [wallet, setWallet] = useState<Wallet | null>(null);
 
@@ -231,7 +232,8 @@ export default function OmnixiusDashboard() {
     if (!energy || energy.total_energy < 50) return toast.error("Insufficient Energy");
     try {
       const res = await fetch("http://localhost:4000/api/energy/convert", {
-        method: "POST", headers: { "Content-Type": "application/json" },
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ username: user.username, amount: 50.0 }),
       });
       const data = await res.json();
@@ -379,7 +381,7 @@ export default function OmnixiusDashboard() {
         <div className="p-4 border-t border-white/5"><button onClick={() => { if (!isMuted) playSound('click'); setIsSidebarOpen(!isSidebarOpen); }} className="w-full h-10 flex items-center justify-center rounded-lg hover:bg-white/5 text-slate-500">{isSidebarOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}</button></div>
       </motion.aside>
 
-      <div className="flex-1 flex flex-col relative z-10 overflow-hidden text-sm text-sm">
+      <div className="flex-1 flex flex-col relative z-10 overflow-hidden text-sm">
         <header className="h-20 border-b border-white/5 bg-black/20 backdrop-blur-md flex items-center justify-between px-8">
           <h2 className="text-xl font-bold text-white flex items-center gap-3 uppercase">{layers.find(l => l.id === activeLayer)?.name} <span className="text-[10px] px-2 py-0.5 bg-white/5 rounded-md text-slate-500 font-mono uppercase">{activeLayer} System</span></h2>
           <div className="flex items-center gap-6">
@@ -413,7 +415,7 @@ export default function OmnixiusDashboard() {
                         <div className="p-8 rounded-3xl bg-white/[0.03] border border-white/5 backdrop-blur-sm shadow-2xl"><h3 className="text-sm font-bold text-slate-400 uppercase tracking-widest mb-6 flex items-center gap-2 font-black"><TrendingUp className="w-4 h-4 text-indigo-500" /> Evolutionary Progress</h3><div className="h-[240px] w-full"><ResponsiveContainer width="100%" height="100%"><AreaChart data={history}><defs><linearGradient id="colorBest" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#6366f1" stopOpacity={0.3}/><stop offset="95%" stopColor="#6366f1" stopOpacity={0}/></linearGradient></defs><CartesianGrid strokeDasharray="3 3" stroke="#ffffff05" vertical={false} /><XAxis dataKey="generation" stroke="#475569" fontSize={10} tickLine={false} axisLine={false} /><YAxis stroke="#475569" fontSize={10} tickLine={false} axisLine={false} /><Tooltip contentStyle={{ backgroundColor: '#0f172a', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '12px' }} itemStyle={{ color: '#818cf8', fontSize: '12px' }} /><Area type="monotone" dataKey="best_fitness" stroke="#6366f1" strokeWidth={2} fillOpacity={1} fill="url(#colorBest)" /></AreaChart></ResponsiveContainer></div></div>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">{population.sort((a,b) => b.fitness - a.fitness).map((org) => (<motion.div layout key={org.id} onClick={() => { if (!isMuted) playSound('click'); setSelectedOrganism(org); }} initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} whileHover={{ scale: 1.02, backgroundColor: "rgba(255,255,255,0.05)" }} className="p-6 rounded-2xl bg-white/[0.03] border border-white/5 hover:border-indigo-500/30 transition-all group cursor-pointer"><div className="flex justify-between items-start mb-4"><div className="flex items-center gap-3"><div className="w-10 h-10 rounded-full bg-slate-800 flex items-center justify-center border border-white/10 text-indigo-400 font-mono text-[10px]">#{org.id}</div><div><p className="text-sm font-bold text-white uppercase">Organism {org.id}</p><p className="text-[10px] text-slate-500 font-mono">DNA Active</p></div></div><div className="text-right"><p className="text-lg font-mono text-white">{org.fitness.toFixed(2)}</p><p className="text-[10px] text-slate-500 uppercase font-black text-sm">Fitness</p></div></div><div className="h-1 w-full bg-white/5 rounded-full overflow-hidden"><motion.div animate={{ width: `${(org.fitness / 20) * 100}%` }} className="h-full bg-gradient-to-r from-indigo-500 to-purple-500" /></div></motion.div>))}</div>
                       </div>
-                      <div className="lg:col-span-4 space-y-8 text-sm text-sm">
+                      <div className="lg:col-span-4 space-y-8">
                         <section className="p-8 rounded-3xl bg-white/[0.03] border border-white/5 backdrop-blur-sm shadow-2xl"><h2 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.25em] mb-6 flex items-center gap-2"><Cpu className="w-4 h-4 text-indigo-500" /> Control Unit</h2><div className="space-y-6"><div className="grid grid-cols-2 gap-4"><div className="p-4 rounded-2xl bg-black/40 border border-white/5"><p className="text-2xl font-bold text-white">{generation}</p><p className="text-[10px] text-slate-500 uppercase tracking-tighter font-bold">Gen</p></div><div className="p-4 rounded-2xl bg-black/40 border border-white/5"><p className="text-2xl font-bold text-indigo-400">{population.length || 0}</p><p className="text-[10px] text-slate-500 uppercase tracking-tighter font-bold">Pop</p></div></div><button onClick={triggerLayerAction} disabled={isEvolving || !backendStatus.includes("Active")} className={cn("w-full py-4 rounded-2xl font-bold transition-all flex items-center justify-center gap-3 group relative overflow-hidden", (isEvolving || !backendStatus.includes("Active")) ? "bg-slate-800 text-slate-500 cursor-not-allowed" : "bg-indigo-600 hover:bg-indigo-500 text-white shadow-xl shadow-indigo-600/20 active:scale-95 uppercase font-black")}>{isEvolving ? <RefreshCw className="w-5 h-5 animate-spin" /> : <><Zap className="w-5 h-5 fill-current" /> Trigger Evolution</>}</button></div></section>
                         <section className="p-8 rounded-3xl bg-white/[0.02] border border-white/5 shadow-xl flex flex-col h-[400px]"><h2 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.25em] mb-6 flex items-center gap-2 font-black"><Terminal className="w-4 h-4 text-purple-500" /> System Logs</h2><div className="flex-1 overflow-y-auto pr-2 custom-scrollbar space-y-3">{logs.map((log, i) => (<div key={i} className="flex gap-3 text-[10px] font-mono leading-relaxed"><span className="text-indigo-500 shrink-0">[{new Date().toLocaleTimeString([], {hour12:false})}]</span><span className={i === 0 ? "text-slate-200" : "text-slate-500"}>{log}</span></div>))}</div></section>
                       </div>

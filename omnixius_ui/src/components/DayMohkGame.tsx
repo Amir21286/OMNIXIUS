@@ -119,7 +119,7 @@ export default function DayMohkGame({ onExit }: { onClose?: () => void, onExit: 
             className="absolute inset-0 z-40"
           >
             {/* 3D Game World */}
-            <Canvas shadows shadowMap>
+            <Canvas shadows>
               <Sky sunPosition={[100, 10, 100]} distance={450000} inclination={0} azimuth={0.25} />
               <ambientLight intensity={0.4} />
               <pointLight position={[10, 10, 10]} castShadow />

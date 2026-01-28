@@ -87,6 +87,14 @@ pub mod api {
         pub best_fitness: f32,
     }
 
+    #[derive(Serialize)]
+    pub struct EvolutionResponse {
+        pub generation: u64,
+        pub population: Vec<Organism>,
+        pub history: Vec<HistoryPoint>,
+        pub new_balance: Option<f64>,
+    }
+
     pub struct AppState {
         pub energy: Arc<Mutex<EnergyService>>,
         pub engine: Arc<Mutex<PhoenixEngine<L0QuantumMutator, L1ChronosFileStorage>>>,
@@ -236,13 +244,13 @@ pub mod api {
                 loc.deployed_organisms.push(payload.organism_id);
                 loc.population += 1;
                 loc.local_energy += 100.0;
-                Ok(())
+                Json(Ok(()))
             } else {
-                Err("Organism already deployed to this territory.".to_string())
+                Json(Err("Organism already deployed to this territory.".to_string()))
             }
         } else {
-            Err("Location not found.".to_string())
-        }.into()
+            Json(Err("Location not found.".to_string()))
+        }
     }
 
     pub async fn report_activity(
@@ -375,7 +383,7 @@ pub mod api {
         ])
     }
 
-    pub async fn trigger_evolution(State(state): State<Arc<AppState>>) -> Json<crate::api::EvolutionResponse> {
+    pub async fn trigger_evolution(State(state): State<Arc<AppState>>) -> Json<EvolutionResponse> {
         let mut engine = state.engine.lock().unwrap();
         let mut rng = rand::thread_rng();
         
@@ -392,7 +400,7 @@ pub mod api {
         history.push(HistoryPoint { generation: engine.generation, best_fitness: best_f });
         if history.len() > 50 { history.remove(0); }
 
-        Json(crate::api::EvolutionResponse {
+        Json(EvolutionResponse {
             generation: engine.generation,
             population: engine.population.clone(),
             history: history.clone(),
