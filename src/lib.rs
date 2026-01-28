@@ -1,24 +1,46 @@
 //! OMNIXIUS – core Rust crate.
-//!
-//! This crate wires the layered architecture into Rust modules while keeping
-//! the source files physically located under `layers/`.
 
 pub mod layers {
-    pub mod l0_quantum {
-        #[path = "../layers/L0_quantum/quantum_mutator.rs"]
-        pub mod quantum_mutator;
-    }
+    #[path = "C:/OMNIXIUS/layers/L0_quantum/quantum_mutator.rs"]
+    pub mod l0_quantum;
 
-    pub mod l1_chronos {
-        #[path = "../layers/L1_chronos/chronos_storage.rs"]
-        pub mod chronos_storage;
-    }
+    #[path = "C:/OMNIXIUS/layers/L1_chronos/chronos_storage.rs"]
+    pub mod l1_chronos;
 
     pub mod l3_organisms {
         pub mod o4_day_mohk {
-            #[path = "../layers/L3_organisms/O4_day_mohk/phoenix_engine.rs"]
+            #[path = "C:/OMNIXIUS/layers/L3_organisms/O4_day_mohk/phoenix_engine.rs"]
             pub mod phoenix_engine;
         }
     }
 }
 
+pub mod api {
+    use axum::{
+        routing::get,
+        Json, Router,
+    };
+    use tower_http::cors::CorsLayer;
+    use serde::Serialize;
+
+    #[derive(Serialize)]
+    pub struct SystemStatus {
+        pub status: String,
+        pub layer: String,
+        pub version: String,
+    }
+
+    pub async fn get_status() -> Json<SystemStatus> {
+        Json(SystemStatus {
+            status: "Active".to_string(),
+            layer: "L3_Organisms".to_string(),
+            version: "0.1.0-alpha".to_string(),
+        })
+    }
+
+    pub fn app() -> Router {
+        Router::new()
+            .route("/api/status", get(get_status))
+            .layer(CorsLayer::permissive())
+    }
+}
