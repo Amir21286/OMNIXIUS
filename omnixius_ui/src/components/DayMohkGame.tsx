@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Canvas, useFrame } from "@react-three/fiber";
 import { 
@@ -14,7 +14,7 @@ import {
   Float,
   MeshDistortMaterial
 } from "@react-three/drei";
-import { Play, Shield, Map as MapIcon, Crosshair, Zap, Users, ArrowLeft } from "lucide-react";
+import { Play, Shield, Map as MapIcon, Crosshair, Zap, Users, ArrowLeft, X } from "lucide-react";
 import * as THREE from "three";
 
 // --- Components ---
@@ -45,7 +45,6 @@ function Landmark({ position, name, color }: { position: [number, number, number
         position={[0, 2.5, 0]}
         fontSize={0.4}
         color="white"
-        font="/fonts/Inter-Bold.woff"
         anchorX="center"
         anchorY="middle"
       >
@@ -57,7 +56,7 @@ function Landmark({ position, name, color }: { position: [number, number, number
 
 // --- Main Game Component ---
 
-export default function DayMohkGame({ onExit }: { onClose?: () => void, onExit: () => void }) {
+export default function DayMohkGame({ onExit }: { onExit: () => void }) {
   const [gameState, setGameState] = useState<"splash" | "playing">("splash");
 
   return (
@@ -75,7 +74,7 @@ export default function DayMohkGame({ onExit }: { onClose?: () => void, onExit: 
             <div className="absolute inset-0 opacity-30">
               <Canvas>
                 <Sky sunPosition={[100, 20, 100]} />
-                <Stars radius={100} depth={50} count={5000} factor={4} saturation={0} fade speed={1} />
+                <Stars radius={100} depth={50} count={5000} factor={4} speed={1} />
               </Canvas>
             </div>
 
@@ -144,7 +143,7 @@ export default function DayMohkGame({ onExit }: { onClose?: () => void, onExit: 
             {/* Game UI Overlays */}
             
             {/* Mini-map */}
-            <div className="absolute bottom-10 left-10 w-48 h-48 bg-black/60 backdrop-blur-xl border-2 border-white/10 rounded-3xl overflow-hidden shadow-2xl">
+            <div className="absolute bottom-10 left-10 w-48 h-48 bg-black/60 backdrop-blur-xl border-2 border-white/10 rounded-3xl overflow-hidden shadow-2xl text-white">
               <div className="absolute inset-0 opacity-50 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')]" />
               <div className="relative w-full h-full flex items-center justify-center">
                 <div className="w-2 h-2 bg-indigo-500 rounded-full animate-ping" />
@@ -196,8 +195,8 @@ export default function DayMohkGame({ onExit }: { onClose?: () => void, onExit: 
   );
 }
 
-// --- Helper for Stars (re-implementing or usingrei) ---
-function Stars({ radius = 100, depth = 50, count = 5000, factor = 4, saturation = 0, fade = false, speed = 1 }) {
+// --- Helper for Stars ---
+function Stars({ radius = 100, depth = 50, count = 5000, factor = 4, speed = 1 }) {
   const ref = useRef<THREE.Points>(null);
   const [positions, colors] = useMemo(() => {
     const positions = new Float32Array(count * 3);
