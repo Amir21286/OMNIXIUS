@@ -1,0 +1,46 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 222.2 84% 4.9%;
+    --primary: 262.1 83.3% 57.8%;
+    --primary-foreground: 210 40% 98%;
+  }
+  .dark {
+    --background: 222.2 84% 4.9%;
+    --foreground: 210 40% 98%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-gray-700;
+  }
+  body {
+    @apply bg-gradient-to-br from-gray-900 via-purple-900 to-gray-900 text-white min-h-screen;
+  }
+}
+
+@layer components {
+  .glass-card {
+    @apply backdrop-blur-lg bg-white/5 border border-white/10 rounded-xl shadow-2xl;
+  }
+  .glow-button {
+    @apply bg-gradient-to-r from-purple-600 to-cyan-500 text-white font-bold py-3 px-6 rounded-xl
+           hover:from-purple-700 hover:to-cyan-600 transition-all duration-300
+           hover:scale-105 hover:shadow-2xl hover:shadow-purple-500/50;
+  }
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+}
+::-webkit-scrollbar-track {
+  @apply bg-gray-900;
+}
+::-webkit-scrollbar-thumb {
+  @apply bg-gradient-to-b from-purple-600 to-cyan-500 rounded-full;
+}
